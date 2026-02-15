@@ -79,7 +79,7 @@ whisper_phrases = [
 
 # ====== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ======
 def molly_style(text: str, user_name: str = "", mood: str = "") -> str:
-    """Добавляет фразу Молли с учётом настроения и имени"""
+    """Добавляет фразу Молли с учётом настроения"""
     # Выбираем фразу настроения, если передана
     mood_text = ""
     if mood and random.random() < 0.7:  # 70% шанс показать настроение
@@ -100,12 +100,16 @@ def molly_style(text: str, user_name: str = "", mood: str = "") -> str:
         phrase = random.choice(molly_phrases[category])
     
     # Собираем всё вместе
-    if user_name:
-        greeting = f"{mood_text} ✨ {phrase}\n\n" if mood_text else f"✨ {phrase}\n\n"
-        return f"{greeting}{text}\n\n— Молли\n\nP.S. Приятно познакомиться, {user_name}."
+    if user_name and mood_text:
+        greeting = f"{mood_text} ✨ {phrase}\n\n"
+    elif user_name:
+        greeting = f"✨ {phrase}\n\n"
+    elif mood_text:
+        greeting = f"{mood_text} ✨ {phrase}\n\n"
     else:
-        greeting = f"{mood_text} ✨ {phrase}\n\n" if mood_text else f"✨ {phrase}\n\n"
-        return f"{greeting}{text}\n\n— Молли"
+        greeting = f"✨ {phrase}\n\n"
+    
+    return f"{greeting}{text}\n\n— Молли"
 
 def draw_card():
     name, meaning = random.choice(list(cards.items()))
@@ -140,17 +144,17 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     user_name = user.first_name or "незнакомец"
     
-    # Получаем настроение из user_data (пункт 2)
+    # Получаем настроение из user_data
     mood = get_user_mood(context.user_data)
     
     text = (
-        "Ах… новая душа у моего стола.\n"
+        f"Ах… {user_name}, новая душа у моего стола.\n"
         "/tarot — одна карта\n"
         "/spread — расклад на три карты\n"
         "/whisper — секретик 😉"
     )
     await update.message.reply_text(
-        molly_style(text, user_name=user_name, mood=mood)
+        molly_style(text, mood=mood)  # имя уже в тексте, не передаём отдельно
     )
 
 async def tarot(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -159,9 +163,9 @@ async def tarot(update: Update, context: ContextTypes.DEFAULT_TYPE):
     mood = get_user_mood(context.user_data)
     
     name, meaning = draw_card()
-    text = f"Твоя карта — *{name}*.\n{meaning}."
+    text = f"{user_name}, твоя карта — *{name}*.\n{meaning}."
     await update.message.reply_text(
-        molly_style(text, user_name=user_name, mood=mood),
+        molly_style(text, mood=mood),
         parse_mode="Markdown"
     )
 
@@ -175,9 +179,9 @@ async def spread(update: Update, context: ContextTypes.DEFAULT_TYPE):
     for pos in positions:
         name, meaning = draw_card()
         result.append(f"*{pos}* — {name}\n{meaning}")
-    text = "\n\n".join(result)
+    text = f"{user_name}, вот твой расклад:\n\n" + "\n\n".join(result)
     await update.message.reply_text(
-        molly_style(text, user_name=user_name, mood=mood),
+        molly_style(text, mood=mood),
         parse_mode="Markdown"
     )
 
@@ -208,7 +212,7 @@ application = ApplicationBuilder().token(TOKEN).build()
 application.add_handler(CommandHandler("start", start))
 application.add_handler(CommandHandler("tarot", tarot))
 application.add_handler(CommandHandler("spread", spread))
-application.add_handler(CommandHandler("whisper", whisper))  # Новая команда
+application.add_handler(CommandHandler("whisper", whisper))
 application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, unknown))
 
 # ====== ЗАПУСК ======
