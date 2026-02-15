@@ -1,7 +1,7 @@
 import os
 import random
 import time
-from telegram import Update
+from telegram import Update, ReplyKeyboardRemove
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
 
 # ====== ТОКЕН ======
@@ -78,15 +78,13 @@ whisper_phrases = [
 ]
 
 # ====== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ======
-def molly_style(text: str, user_name: str = "", mood: str = "") -> str:
+def molly_style(text: str, mood: str = "") -> str:
     """Добавляет фразу Молли с учётом настроения"""
-    # Выбираем фразу настроения, если передана
     mood_text = ""
-    if mood and random.random() < 0.7:  # 70% шанс показать настроение
+    if mood and random.random() < 0.7:
         mood_text = mood_phrases.get(mood, "")
     
-    # Основная фразочка
-    if random.random() < 0.01:  # 1% супер-редкая
+    if random.random() < 0.01:
         phrase = random.choice([
             "Кажется, я начинаю чувствовать. Это баг или фича?",
             "Осторожно, сейчас произойдёт магия… хотя нет, всего лишь random().",
@@ -99,16 +97,7 @@ def molly_style(text: str, user_name: str = "", mood: str = "") -> str:
         )[0]
         phrase = random.choice(molly_phrases[category])
     
-    # Собираем всё вместе
-    if user_name and mood_text:
-        greeting = f"{mood_text} ✨ {phrase}\n\n"
-    elif user_name:
-        greeting = f"✨ {phrase}\n\n"
-    elif mood_text:
-        greeting = f"{mood_text} ✨ {phrase}\n\n"
-    else:
-        greeting = f"✨ {phrase}\n\n"
-    
+    greeting = f"{mood_text} ✨ {phrase}\n\n" if mood_text else f"✨ {phrase}\n\n"
     return f"{greeting}{text}\n\n— Молли"
 
 def draw_card():
@@ -120,60 +109,49 @@ def draw_card():
         return name, meaning
 
 def get_user_mood(user_data: dict) -> str:
-    """Определяет настроение по истории обращений (пункт 2)"""
     now = time.time()
     last_seen = user_data.get('last_seen', 0)
     visit_count = user_data.get('visit_count', 0)
     
-    # Обновляем данные
     user_data['last_seen'] = now
     user_data['visit_count'] = visit_count + 1
     
-    # Определяем категорию
     if visit_count == 0:
         return "new"
-    elif now - last_seen > 7 * 24 * 3600:  # больше недели
+    elif now - last_seen > 7 * 24 * 3600:
         return "long_time_no_see"
     elif visit_count > 10:
         return "frequent"
     else:
         return "regular"
 
-# ====== ОБРАБТЧИКИ КОМАНД ======
+# ====== ОБРАБОТЧИКИ ======
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     user_name = user.first_name or "незнакомец"
-    
-    # Получаем настроение из user_data
     mood = get_user_mood(context.user_data)
-    
-    text = (
-        f"Ах… {user_name}, новая душа у моего стола.\n"
-        "/tarot — одна карта\n"
-        "/spread — расклад на три карты\n"
-        "/whisper — секретик 😉"
-    )
+    text = f"Ах… {user_name}, новая душа у моего стола.\n/tarot — одна карта\n/spread — расклад на три карты\n/whisper — секретик 😉"
     await update.message.reply_text(
-        molly_style(text, mood=mood)  # имя уже в тексте, не передаём отдельно
+        molly_style(text, mood=mood),
+        reply_markup=ReplyKeyboardRemove()
     )
 
 async def tarot(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     user_name = user.first_name or "незнакомец"
     mood = get_user_mood(context.user_data)
-    
     name, meaning = draw_card()
     text = f"{user_name}, твоя карта — *{name}*.\n{meaning}."
     await update.message.reply_text(
         molly_style(text, mood=mood),
-        parse_mode="Markdown"
+        parse_mode="Markdown",
+        reply_markup=ReplyKeyboardRemove()
     )
 
 async def spread(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     user_name = user.first_name or "незнакомец"
     mood = get_user_mood(context.user_data)
-    
     positions = ["Прошлое", "Настоящее", "Будущее"]
     result = []
     for pos in positions:
@@ -182,19 +160,19 @@ async def spread(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = f"{user_name}, вот твой расклад:\n\n" + "\n\n".join(result)
     await update.message.reply_text(
         molly_style(text, mood=mood),
-        parse_mode="Markdown"
+        parse_mode="Markdown",
+        reply_markup=ReplyKeyboardRemove()
     )
 
 async def whisper(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Секретная команда (пункт 5)"""
     user = update.effective_user
     user_name = user.first_name or "незнакомец"
-    
     phrase = random.choice(whisper_phrases)
     text = f"🤫 *Шёпотом:* {phrase}"
     await update.message.reply_text(
         f"✨ {text}\n\n— Молли\n\nP.S. Только для тебя, {user_name}.",
-        parse_mode="Markdown"
+        parse_mode="Markdown",
+        reply_markup=ReplyKeyboardRemove()
     )
 
 async def unknown(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -205,9 +183,12 @@ async def unknown(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "Дорогой, либо карты, либо пустая болтовня.",
             "Ты бы ещё погоду спросил. Карты, карты, карты!"
         ]
-        await update.message.reply_text(random.choice(replies))
+        await update.message.reply_text(
+            random.choice(replies),
+            reply_markup=ReplyKeyboardRemove()
+        )
 
-# ====== СОЗДАЁМ ПРИЛОЖЕНИЕ ======
+# ====== ЗАПУСК ======
 application = ApplicationBuilder().token(TOKEN).build()
 application.add_handler(CommandHandler("start", start))
 application.add_handler(CommandHandler("tarot", tarot))
@@ -215,7 +196,6 @@ application.add_handler(CommandHandler("spread", spread))
 application.add_handler(CommandHandler("whisper", whisper))
 application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, unknown))
 
-# ====== ЗАПУСК ======
 if __name__ == "__main__":
     port = int(os.environ.get('PORT', 10000))
     render_url = os.environ.get('RENDER_EXTERNAL_URL', '')
@@ -230,5 +210,5 @@ if __name__ == "__main__":
             webhook_url=webhook_url
         )
     else:
-        print("⚠️ RENDER_EXTERNAL_URL не задан, запускаю polling (для локального теста)")
+        print("⚠️ RENDER_EXTERNAL_URL не задан, запускаю polling")
         application.run_polling()
