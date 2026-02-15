@@ -1,6 +1,7 @@
 import os
 import random
-from telegram import Update, ReplyKeyboardMarkup, KeyboardButton
+import time
+from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
 
 # ====== ТОКЕН ======
@@ -59,41 +60,52 @@ molly_phrases = {
     ]
 }
 
-random_replies = [
-    "Молли не тратит слова на пустяки. Нажми на кнопку.",
-    "Ты хочешь поговорить? Я предпочитаю карты.",
-    "Дорогой, либо карты, либо пустая болтовня. Я выбираю карты.",
-    "Ты бы ещё погоду спросил. Карты, карты, карты!"
-]
+# Фразы для настроения (пункт 2)
+mood_phrases = {
+    "new": "Новое лицо… как освежающе.",
+    "regular": "Снова ты? Ну давай, посмотрим, что карты скажут.",
+    "frequent": "Опять? Ты становишься навязчивым… мне это нравится.",
+    "long_time_no_see": "А, это ты… Я уж думал, ты забыл дорогу к моему столу."
+}
 
-super_rare = [
-    "Кажется, я начинаю чувствовать. Это баг или фича?",
-    "Осторожно, сейчас произойдёт магия… хотя нет, всего лишь random().",
-    "Молли выходит на связь из другого измерения…",
+# Секретные фразы для /whisper (пункт 5)
+whisper_phrases = [
+    "Ш-ш-ш… только между нами: иногда я сам не верю в эти карты. Но ты этого не слышал.",
+    "По секрету: карты выбираю случайно, но ты не рассказывай никому.",
+    "Шёпотом: из всех смертных ты мне нравишься больше всех. Но молчок.",
+    "Секрет: я иногда подглядываю в твои сны. Драматичные, надо сказать.",
+    "Тише… если карты узнают, что я это сказал, они обидятся."
 ]
-
-# ====== КНОПКИ МЕНЮ ======
-menu_keyboard = [
-    [KeyboardButton("🎴 Одна карта")],
-    [KeyboardButton("🔮 Расклад на три")]
-]
-reply_markup_menu = ReplyKeyboardMarkup(
-    menu_keyboard,
-    resize_keyboard=True,
-    input_field_placeholder="Выбери гадание..."
-)
 
 # ====== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ======
-def molly_style(text: str) -> str:
+def molly_style(text: str, user_name: str = "", mood: str = "") -> str:
+    """Добавляет фразу Молли с учётом настроения и имени"""
+    # Выбираем фразу настроения, если передана
+    mood_text = ""
+    if mood and random.random() < 0.7:  # 70% шанс показать настроение
+        mood_text = mood_phrases.get(mood, "")
+    
+    # Основная фразочка
     if random.random() < 0.01:  # 1% супер-редкая
-        phrase = random.choice(super_rare)
+        phrase = random.choice([
+            "Кажется, я начинаю чувствовать. Это баг или фича?",
+            "Осторожно, сейчас произойдёт магия… хотя нет, всего лишь random().",
+            "Молли выходит на связь из другого измерения…"
+        ])
     else:
         category = random.choices(
             list(molly_phrases.keys()),
             weights=[3, 2, 2, 1]
         )[0]
         phrase = random.choice(molly_phrases[category])
-    return f"✨ {phrase}\n\n{text}\n\n— Молли"
+    
+    # Собираем всё вместе
+    if user_name:
+        greeting = f"{mood_text} ✨ {phrase}\n\n" if mood_text else f"✨ {phrase}\n\n"
+        return f"{greeting}{text}\n\n— Молли\n\nP.S. Приятно познакомиться, {user_name}."
+    else:
+        greeting = f"{mood_text} ✨ {phrase}\n\n" if mood_text else f"✨ {phrase}\n\n"
+        return f"{greeting}{text}\n\n— Молли"
 
 def draw_card():
     name, meaning = random.choice(list(cards.items()))
@@ -103,25 +115,61 @@ def draw_card():
     else:
         return name, meaning
 
-# ====== ОБРАБОТЧИКИ КОМАНД ======
+def get_user_mood(user_data: dict) -> str:
+    """Определяет настроение по истории обращений (пункт 2)"""
+    now = time.time()
+    last_seen = user_data.get('last_seen', 0)
+    visit_count = user_data.get('visit_count', 0)
+    
+    # Обновляем данные
+    user_data['last_seen'] = now
+    user_data['visit_count'] = visit_count + 1
+    
+    # Определяем категорию
+    if visit_count == 0:
+        return "new"
+    elif now - last_seen > 7 * 24 * 3600:  # больше недели
+        return "long_time_no_see"
+    elif visit_count > 10:
+        return "frequent"
+    else:
+        return "regular"
+
+# ====== ОБРАБТЧИКИ КОМАНД ======
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user
+    user_name = user.first_name or "незнакомец"
+    
+    # Получаем настроение из user_data (пункт 2)
+    mood = get_user_mood(context.user_data)
+    
     text = (
         "Ах… новая душа у моего стола.\n"
         "/tarot — одна карта\n"
-        "/spread — расклад на три карты"
+        "/spread — расклад на три карты\n"
+        "/whisper — секретик 😉"
     )
-    await update.message.reply_text(text, reply_markup=reply_markup_menu)
+    await update.message.reply_text(
+        molly_style(text, user_name=user_name, mood=mood)
+    )
 
 async def tarot(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user
+    user_name = user.first_name or "незнакомец"
+    mood = get_user_mood(context.user_data)
+    
     name, meaning = draw_card()
     text = f"Твоя карта — *{name}*.\n{meaning}."
     await update.message.reply_text(
-        molly_style(text),
-        parse_mode="Markdown",
-        reply_markup=reply_markup_menu
+        molly_style(text, user_name=user_name, mood=mood),
+        parse_mode="Markdown"
     )
 
 async def spread(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user
+    user_name = user.first_name or "незнакомец"
+    mood = get_user_mood(context.user_data)
+    
     positions = ["Прошлое", "Настоящее", "Будущее"]
     result = []
     for pos in positions:
@@ -129,29 +177,38 @@ async def spread(update: Update, context: ContextTypes.DEFAULT_TYPE):
         result.append(f"*{pos}* — {name}\n{meaning}")
     text = "\n\n".join(result)
     await update.message.reply_text(
-        molly_style(text),
-        parse_mode="Markdown",
-        reply_markup=reply_markup_menu
+        molly_style(text, user_name=user_name, mood=mood),
+        parse_mode="Markdown"
     )
 
-async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    text = update.message.text
-    if text == "🎴 Одна карта":
-        await tarot(update, context)
-    elif text == "🔮 Расклад на три":
-        await spread(update, context)
+async def whisper(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Секретная команда (пункт 5)"""
+    user = update.effective_user
+    user_name = user.first_name or "незнакомец"
+    
+    phrase = random.choice(whisper_phrases)
+    text = f"🤫 *Шёпотом:* {phrase}"
+    await update.message.reply_text(
+        f"✨ {text}\n\n— Молли\n\nP.S. Только для тебя, {user_name}.",
+        parse_mode="Markdown"
+    )
 
 async def unknown(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.message.chat.type == "private":
-        reply = random.choice(random_replies)
-        await update.message.reply_text(reply, reply_markup=reply_markup_menu)
+        replies = [
+            "Молли не тратит слова на пустяки. Нажми /start.",
+            "Ты хочешь поговорить? Я предпочитаю карты.",
+            "Дорогой, либо карты, либо пустая болтовня.",
+            "Ты бы ещё погоду спросил. Карты, карты, карты!"
+        ]
+        await update.message.reply_text(random.choice(replies))
 
 # ====== СОЗДАЁМ ПРИЛОЖЕНИЕ ======
 application = ApplicationBuilder().token(TOKEN).build()
 application.add_handler(CommandHandler("start", start))
 application.add_handler(CommandHandler("tarot", tarot))
 application.add_handler(CommandHandler("spread", spread))
-application.add_handler(MessageHandler(filters.Text(["🎴 Одна карта", "🔮 Расклад на три"]), button_handler))
+application.add_handler(CommandHandler("whisper", whisper))  # Новая команда
 application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, unknown))
 
 # ====== ЗАПУСК ======
@@ -160,7 +217,6 @@ if __name__ == "__main__":
     render_url = os.environ.get('RENDER_EXTERNAL_URL', '')
 
     if render_url:
-        # Устанавливаем веб-хук и запускаем встроенный сервер
         webhook_url = f"{render_url}/webhook"
         print(f"✨ Устанавливаю веб-хук на {webhook_url}")
         application.run_webhook(
