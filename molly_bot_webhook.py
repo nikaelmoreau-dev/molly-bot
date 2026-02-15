@@ -7,7 +7,7 @@ from flask import Flask, request
 import threading
 
 # ====== ТОКЕН ======
-TOKEN = "ТОКЕН_ТВОЕГО_БОТА"
+TOKEN = "8306335540:AAF25MZbf1a-oJbihMzmT0DXU5Q5zyPS2gY"
 
 # ====== ПОЛНАЯ КОЛОДА СТАРШИХ АРКАНОВ ======
 cards = {
