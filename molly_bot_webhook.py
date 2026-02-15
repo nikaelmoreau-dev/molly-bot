@@ -4,7 +4,7 @@ from telegram import Update, ReplyKeyboardMarkup, KeyboardButton
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
 
 # ====== ТОКЕН ======
-TOKEN = "ТОКЕН_ТВОЕГО_БОТА"  # Вставьте свой токен
+TOKEN = "8306335540:AAF25MZbf1a-oJbihMzmT0DXU5Q5zyPS2gY#
 
 # ====== ПОЛНАЯ КОЛОДА СТАРШИХ АРКАНОВ ======
 cards = {
