@@ -1,13 +1,10 @@
 import os
 import random
-import asyncio
-from telegram import Update
+from telegram import Update, ReplyKeyboardMarkup, KeyboardButton
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
-from flask import Flask, request
-import threading
 
 # ====== ТОКЕН ======
-TOKEN = "8306335540:AAF25MZbf1a-oJbihMzmT0DXU5Q5zyPS2gY"
+TOKEN = "ТОКЕН_ТВОЕГО_БОТА"  # Вставьте свой токен
 
 # ====== ПОЛНАЯ КОЛОДА СТАРШИХ АРКАНОВ ======
 cards = {
@@ -40,36 +37,42 @@ molly_phrases = {
     "sarcasm": [
         "О, ещё одна потерянная душа… прекрасно.",
         "Карты говорят, а ты слушаешь. Впервые, что ли?",
+        "Знаешь, я тут не просто так сижу с этим красивым лицом.",
+        "Осторожнее с желаниями, они имеют привычку сбываться.",
     ],
     "flirt": [
         "Какая страсть в этой карте… прямо как у тебя.",
         "Твоя энергия сегодня особенно будоражит карты.",
+        "Если бы я был жив, я бы точно пригласил тебя на выпивку.",
+        "Твоё будущее такое же загадочное, как и твои глаза.",
     ],
     "dramatic": [
         "Судьба делает тебе реверанс!",
+        "Это даже меня пугает… в хорошем смысле.",
         "Трагедия или комедия? Карты пока не решили.",
+        "Тени сгущаются… но ты же любишь драму?",
     ],
     "rare": [
         "Я вижу в твоей ауре… ой, ладно, ничего не вижу, я просто бот.",
+        "Знаешь, кто мне сегодня снился? Колесо Фортуны. Иронично.",
         "Ты мне нравишься. Не говори никому, а то репутация.",
     ]
 }
 
-# Для ответов на случайные сообщения
 random_replies = [
     "Молли не тратит слова на пустяки. Нажми на кнопку.",
+    "Ты хочешь поговорить? Я предпочитаю карты.",
     "Дорогой, либо карты, либо пустая болтовня. Я выбираю карты.",
     "Ты бы ещё погоду спросил. Карты, карты, карты!"
 ]
 
-# Редкие супер-особые фразы
 super_rare = [
     "Кажется, я начинаю чувствовать. Это баг или фича?",
-    "Осторожно, сейчас произойдёт магия… хотя нет, всего лишь random()."
+    "Осторожно, сейчас произойдёт магия… хотя нет, всего лишь random().",
+    "Молли выходит на связь из другого измерения…",
 ]
 
 # ====== КНОПКИ МЕНЮ ======
-from telegram import ReplyKeyboardMarkup, KeyboardButton
 menu_keyboard = [
     [KeyboardButton("🎴 Одна карта")],
     [KeyboardButton("🔮 Расклад на три")]
@@ -81,8 +84,8 @@ reply_markup_menu = ReplyKeyboardMarkup(
 )
 
 # ====== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ======
-def molly_style(text: str, context_hint: str = "default") -> str:
-    if random.random() < 0.01:
+def molly_style(text: str) -> str:
+    if random.random() < 0.01:  # 1% супер-редкая
         phrase = random.choice(super_rare)
     else:
         category = random.choices(
@@ -102,13 +105,21 @@ def draw_card():
 
 # ====== ОБРАБОТЧИКИ КОМАНД ======
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    text = "Ах… новая душа у моего стола.\n/tarot — одна карта\n/spread — расклад на три"
+    text = (
+        "Ах… новая душа у моего стола.\n"
+        "/tarot — одна карта\n"
+        "/spread — расклад на три карты"
+    )
     await update.message.reply_text(text, reply_markup=reply_markup_menu)
 
 async def tarot(update: Update, context: ContextTypes.DEFAULT_TYPE):
     name, meaning = draw_card()
     text = f"Твоя карта — *{name}*.\n{meaning}."
-    await update.message.reply_text(molly_style(text), parse_mode="Markdown", reply_markup=reply_markup_menu)
+    await update.message.reply_text(
+        molly_style(text),
+        parse_mode="Markdown",
+        reply_markup=reply_markup_menu
+    )
 
 async def spread(update: Update, context: ContextTypes.DEFAULT_TYPE):
     positions = ["Прошлое", "Настоящее", "Будущее"]
@@ -117,7 +128,11 @@ async def spread(update: Update, context: ContextTypes.DEFAULT_TYPE):
         name, meaning = draw_card()
         result.append(f"*{pos}* — {name}\n{meaning}")
     text = "\n\n".join(result)
-    await update.message.reply_text(molly_style(text), parse_mode="Markdown", reply_markup=reply_markup_menu)
+    await update.message.reply_text(
+        molly_style(text),
+        parse_mode="Markdown",
+        reply_markup=reply_markup_menu
+    )
 
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text
@@ -131,7 +146,7 @@ async def unknown(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply = random.choice(random_replies)
         await update.message.reply_text(reply, reply_markup=reply_markup_menu)
 
-# ====== СОЗДАЁМ ПРИЛОЖЕНИЕ TELEGRAM ======
+# ====== СОЗДАЁМ ПРИЛОЖЕНИЕ ======
 application = ApplicationBuilder().token(TOKEN).build()
 application.add_handler(CommandHandler("start", start))
 application.add_handler(CommandHandler("tarot", tarot))
@@ -139,45 +154,21 @@ application.add_handler(CommandHandler("spread", spread))
 application.add_handler(MessageHandler(filters.Text(["🎴 Одна карта", "🔮 Расклад на три"]), button_handler))
 application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, unknown))
 
-# ====== FLASK-СЕРВЕР ДЛЯ RENDER ======
-app = Flask(__name__)
-
-@app.route('/')
-def index():
-    return "Молли Моллимок живёт здесь! ✨"
-
-@app.route('/healthcheck')
-def health():
-    return "OK", 200
-
-@app.route('/webhook', methods=['POST'])
-def webhook():
-    """Принимает обновления от Telegram"""
-    update = Update.de_json(request.get_json(force=True), application.bot)
-    asyncio.run_coroutine_threadsafe(application.process_update(update), application.loop)
-    return "OK", 200
-
-def run_bot():
-    """Запускает бота в отдельном потоке"""
-    import time
-    time.sleep(2)  # Даём Flask время запуститься
-    
-    # Устанавливаем веб-хук
-    render_url = os.environ.get('RENDER_EXTERNAL_URL', '')
-    if render_url:
-        webhook_url = f"{render_url}/webhook"
-        asyncio.run(application.bot.set_webhook(webhook_url))
-        print(f"✨ Веб-хук установлен на {webhook_url}")
-    
-    # Запускаем бота
-    application.run_polling()  # Запасной вариант
-
+# ====== ЗАПУСК ======
 if __name__ == "__main__":
-    # Запускаем бота в фоновом потоке
-    import threading
-    bot_thread = threading.Thread(target=run_bot, daemon=True)
-    bot_thread.start()
-    
-    # Запускаем Flask-сервер
     port = int(os.environ.get('PORT', 10000))
-    app.run(host='0.0.0.0', port=port)
+    render_url = os.environ.get('RENDER_EXTERNAL_URL', '')
+
+    if render_url:
+        # Устанавливаем веб-хук и запускаем встроенный сервер
+        webhook_url = f"{render_url}/webhook"
+        print(f"✨ Устанавливаю веб-хук на {webhook_url}")
+        application.run_webhook(
+            listen="0.0.0.0",
+            port=port,
+            url_path="webhook",
+            webhook_url=webhook_url
+        )
+    else:
+        print("⚠️ RENDER_EXTERNAL_URL не задан, запускаю polling (для локального теста)")
+        application.run_polling()
