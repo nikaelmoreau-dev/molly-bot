@@ -5,7 +5,7 @@ from telegram import Update, ReplyKeyboardRemove
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
 
 # ====== ТОКЕН ======
-TOKEN = "YOUR_TOKEN_HERE"
+TOKEN = "8306335540:AAF25MZbf1a-oJbihMzmT0DXU5Q5zyPS2gY"
 
 # ====== КАРТЫ (ГОЛОС МОЛЛИ) ======
 cards = {
