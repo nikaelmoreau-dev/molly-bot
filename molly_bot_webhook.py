@@ -2,7 +2,13 @@ import os
 import random
 import time
 from telegram import Update, ReplyKeyboardRemove
-from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
+from telegram.ext import (
+    ApplicationBuilder,
+    CommandHandler,
+    MessageHandler,
+    filters,
+    ContextTypes,
+)
 
 # ====== ТОКЕН ======
 TOKEN = "8306335540:AAF25MZbf1a-oJbihMzmT0DXU5Q5zyPS2gY"
@@ -30,7 +36,7 @@ cards = {
     "Луна": "не всё так, как кажется. И ты это чувствуешь.",
     "Солнце": "ясность, тепло и момент, когда можно выдохнуть.",
     "Суд": "пора перестать убегать от прошлого.",
-    "Мир": "ты дошёл до конца одного пути. И это красиво."
+    "Мир": "ты дошёл до конца одного пути. И это красиво.",
 }
 
 reversed_cards = {
@@ -55,21 +61,21 @@ reversed_cards = {
     "Луна": "страхи управляют решениями.",
     "Солнце": "ты не позволяешь себе радость.",
     "Суд": "ты откладываешь важный разговор.",
-    "Мир": "ты не позволяешь себе завершить."
+    "Мир": "ты не позволяешь себе завершить.",
 }
 
 heavy_reactions = {
     "Смерть": ["Я не пугаю тебя. Я предупреждаю."],
     "Башня": ["Держись крепче."],
     "Дьявол": ["Будь честен с собой."],
-    "Луна": ["Сейчас особенно важно не врать себе."]
+    "Луна": ["Сейчас особенно важно не врать себе."],
 }
 
 micro_comments = [
     "Посмотрим…",
     "Вот как…",
     "Интересно.",
-    "Карты сегодня откровенны."
+    "Карты сегодня откровенны.",
 ]
 
 # ====== СОВЕТЫ ======
@@ -86,8 +92,43 @@ advice_refusal_phrases = [
     "Если я скажу — ты не услышишь.",
 ]
 
+# ====== ПРИВЕТСТВИЯ ======
+start_greetings = [
+    "Ты пришёл вовремя. Карты уже разложены, но я пока не смотрю.",
+    "Садись. Я не задаю вопросов — карты сделают это за меня.",
+    "Интересно… Обычно ко мне приходят, когда что-то уже треснуло.",
+    "Ты здесь. Значит, внутри тебя есть вопрос. Или страх.",
+    "Не каждый решается подойти. Посмотрим, что привело тебя.",
+    "Тише. Иногда ответы пугаются громких мыслей.",
+]
+
+# ====== ШЁПОТ (КАТЕГОРИИ) ======
+whisper_common = [
+    "Не все вопросы требуют ответа.",
+    "Карты слышат больше, чем говорят.",
+    "Иногда молчание — лучший расклад.",
+    "Ты задаёшь правильные вопросы. Почти.",
+    "Не торопи судьбу. Она этого не любит.",
+]
+
+whisper_personal = [
+    "Ты уже знаешь ответ. Просто боишься его услышать.",
+    "Этот вопрос возвращается к тебе не в первый раз.",
+    "Ты сильнее, чем думаешь. Но пока не веришь.",
+    "Ты ищешь знак, а не решение.",
+    "Иногда ты притворяешься, что не видишь очевидного.",
+]
+
+whisper_rare = [
+    "Я бы не стала задавать этот вопрос снова.",
+    "Не всё, что ты хочешь узнать, готово быть узнанным.",
+    "Карты запомнили тебя.",
+    "В следующий раз ответ будет другим.",
+    "Некоторые пути лучше не освещать.",
+]
+
 # ====== СТИЛЬ МОЛЛИ ======
-def molly_style(text: str, mood: str = "") -> str:
+def molly_style(text: str) -> str:
     return f"✨ {text}\n\n— Молли"
 
 def question_not_ready(user_data: dict) -> bool:
@@ -113,8 +154,18 @@ def draw_card():
 
 # ====== ОБРАБОТЧИКИ ======
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    text = "/tarot — карта\n/spread — расклад\n/advice — совет\n/whisper — секрет"
-    await update.message.reply_text(molly_style(text), reply_markup=ReplyKeyboardRemove())
+    greeting = random.choice(start_greetings)
+    text = (
+        f"{greeting}\n\n"
+        "/tarot — вытянуть карту\n"
+        "/spread — расклад\n"
+        "/advice — совет без карт\n"
+        "/whisper — сказать шёпотом"
+    )
+    await update.message.reply_text(
+        molly_style(text),
+        reply_markup=ReplyKeyboardRemove()
+    )
 
 async def tarot(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if question_not_ready(context.user_data):
@@ -157,23 +208,43 @@ async def advice(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         phrase = random.choice(advice_phrases)
 
-    await update.message.reply_text(molly_style(phrase), reply_markup=ReplyKeyboardRemove())
+    await update.message.reply_text(
+        molly_style(phrase),
+        reply_markup=ReplyKeyboardRemove()
+    )
 
 async def whisper(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    # Выбираем категорию с разной вероятностью
+    r = random.random()
+    if r < 0.1:          # 10% – редкая
+        phrase = random.choice(whisper_rare)
+    elif r < 0.4:        # 30% – персональная
+        phrase = random.choice(whisper_personal)
+    else:                 # 60% – общая
+        phrase = random.choice(whisper_common)
+
     await update.message.reply_text(
-        molly_style("Не все вопросы требуют ответа."),
+        molly_style(phrase),
         reply_markup=ReplyKeyboardRemove()
     )
 
 # ====== ЗАПУСК С ВЕБХУКАМИ ======
 def main():
     application = ApplicationBuilder().token(TOKEN).build()
+
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("tarot", tarot))
     application.add_handler(CommandHandler("spread", spread))
     application.add_handler(CommandHandler("advice", advice))
     application.add_handler(CommandHandler("whisper", whisper))
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, start))
+
+    # Реагировать на любой текст – только в личных сообщениях
+    application.add_handler(
+        MessageHandler(
+            filters.TEXT & ~filters.COMMAND & filters.ChatType.PRIVATE,
+            start
+        )
+    )
 
     port = int(os.environ.get('PORT', 10000))
     render_url = os.environ.get('RENDER_EXTERNAL_URL', '')
