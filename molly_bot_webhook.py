@@ -114,25 +114,28 @@ def draw_card():
 # ====== ОБРАБОТЧИКИ ======
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = "/tarot — карта\n/spread — расклад\n/advice — совет\n/whisper — секрет"
-    await update.message.reply_text(molly_style(text))
+    await update.message.reply_text(molly_style(text), reply_markup=ReplyKeyboardRemove())
 
 async def tarot(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if question_not_ready(context.user_data):
         await update.message.reply_text(
-            molly_style("Я не буду тянуть карту. Вопрос ещё не созрел.")
+            molly_style("Я не буду тянуть карту. Вопрос ещё не созрел."),
+            reply_markup=ReplyKeyboardRemove()
         )
         return
 
     name, meaning = draw_card()
     await update.message.reply_text(
         molly_style(f"*{name}*\n{meaning}"),
-        parse_mode="Markdown"
+        parse_mode="Markdown",
+        reply_markup=ReplyKeyboardRemove()
     )
 
 async def spread(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if random.random() < 0.03:
         await update.message.reply_text(
-            molly_style("Я не возьмусь за расклад. Сейчас слишком много шума.")
+            molly_style("Я не возьмусь за расклад. Сейчас слишком много шума."),
+            reply_markup=ReplyKeyboardRemove()
         )
         return
 
@@ -144,7 +147,8 @@ async def spread(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.message.reply_text(
         molly_style("\n\n".join(result)),
-        parse_mode="Markdown"
+        parse_mode="Markdown",
+        reply_markup=ReplyKeyboardRemove()
     )
 
 async def advice(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -153,21 +157,39 @@ async def advice(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         phrase = random.choice(advice_phrases)
 
-    await update.message.reply_text(molly_style(phrase))
+    await update.message.reply_text(molly_style(phrase), reply_markup=ReplyKeyboardRemove())
 
 async def whisper(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
-        molly_style("Не все вопросы требуют ответа.")
+        molly_style("Не все вопросы требуют ответа."),
+        reply_markup=ReplyKeyboardRemove()
     )
 
-# ====== ЗАПУСК ======
-application = ApplicationBuilder().token(TOKEN).build()
-application.add_handler(CommandHandler("start", start))
-application.add_handler(CommandHandler("tarot", tarot))
-application.add_handler(CommandHandler("spread", spread))
-application.add_handler(CommandHandler("advice", advice))
-application.add_handler(CommandHandler("whisper", whisper))
-application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, start))
+# ====== ЗАПУСК С ВЕБХУКАМИ ======
+def main():
+    application = ApplicationBuilder().token(TOKEN).build()
+    application.add_handler(CommandHandler("start", start))
+    application.add_handler(CommandHandler("tarot", tarot))
+    application.add_handler(CommandHandler("spread", spread))
+    application.add_handler(CommandHandler("advice", advice))
+    application.add_handler(CommandHandler("whisper", whisper))
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, start))
+
+    port = int(os.environ.get('PORT', 10000))
+    render_url = os.environ.get('RENDER_EXTERNAL_URL', '')
+
+    if render_url:
+        webhook_url = f"{render_url}/webhook"
+        print(f"✨ Устанавливаю веб-хук на {webhook_url}")
+        application.run_webhook(
+            listen="0.0.0.0",
+            port=port,
+            url_path="webhook",
+            webhook_url=webhook_url
+        )
+    else:
+        print("⚠️ RENDER_EXTERNAL_URL не задан, запускаю polling (локально)")
+        application.run_polling()
 
 if __name__ == "__main__":
-    application.run_polling()
+    main()
